@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if logged_in %}Trang Quản Trị Giáo Viên{% else %}Nộp Bài Tập{% endif %}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        h1 { color: #333; margin: 0; }
+        .upload-section { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; margin-bottom: 40px; }
+        .file-list { background: #fff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
+        .file-item { display: flex; justify-content: space-between; padding: 15px 25px; border-bottom: 1px solid #eee; align-items: center; }
+        .file-item:last-child { border-bottom: none; }
+        .file-item a.file-link { text-decoration: none; color: #007bff; font-weight: 500; font-size: 1.1em; }
+        .file-item a.file-link:hover { text-decoration: underline; }
+        
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-primary { background: #007bff; color: white; font-size: 1.1em; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-danger { background: #dc3545; color: white; padding: 5px 15px; font-size: 0.9em; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-outline { border: 1px solid #007bff; color: #007bff; background: transparent; }
+        .btn-outline:hover { background: #007bff; color: white; }
+
+        input[type="file"] { margin: 20px 0; display: block; width: 100%; text-align: center; }
+        .alert { padding: 15px; background-color: #d4edda; color: #155724; border-radius: 4px; margin-bottom: 20px; text-align: center; border: 1px solid #c3e6cb;}
+        
+        .login-link { text-decoration: none; color: #6c757d; font-size: 0.9em; }
+        .login-link:hover { color: #333; text-decoration: underline; }
+
+        .hidden-student { text-align: center; color: #666; margin-top: 50px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>{% if logged_in %}📂 Quản Lý Bài Tập{% else %}📝 Nộp Bài Tập{% endif %}</h1>
+        <div>
+            {% if logged_in %}
+                <span style="margin-right: 15px;">Xin chào, <b>Giáo viên</b></span>
+                <a href="/logout" class="btn btn-outline">Đăng xuất</a>
+            {% else %}
+                <a href="/login" class="login-link">🔒 Giáo viên đăng nhập</a>
+            {% endif %}
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert">{{ messages[0] }}</div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="upload-section">
+        <h3>Chọn file bài tập để nộp</h3>
+        <p style="color: #666; margin-bottom: 20px;">Hệ thống sẽ tự động đổi tên nếu trùng file.</p>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" required>
+            <button type="submit" class="btn btn-primary">⬆️ Tải Lên Ngay</button>
+        </form>
+    </div>
+
+    {% if logged_in %}
+    <div class="file-list">
+        <div class="file-item" style="background: #e9ecef; font-weight: bold;">
+            <span>Tên File</span>
+            <span>Thao tác</span>
+        </div>
+        {% for file in files %}
+        <div class="file-item">
+            <a href="/download/{{ file }}" class="file-link" target="_blank">{{ file }}</a>
+            <form action="/delete/{{ file }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Xóa bài tập này?')">Xóa</button>
+            </form>
+        </div>
+        {% else %}
+        <div class="file-item">
+            <span>Chưa có bài tập nào được nộp.</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="hidden-student">
+        <p>Danh sách file bị ẩn. Chỉ giáo viên mới có quyền xem danh sách bài tập.</p>
+    </div>
+    {% endif %}
+
+</body>
+</html>
