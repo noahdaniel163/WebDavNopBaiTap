@@ -7,34 +7,60 @@ import os
 import webbrowser
 import logging
 import requests
+import multiprocessing
+import queue
+import socket
 from waitress import serve
 from app import app, reload_config, CONFIG_FILE
 
-class ServerThread(threading.Thread):
-    def __init__(self, host, port, debug):
-        threading.Thread.__init__(self)
-        self.host = host
-        self.port = port
-        self.debug = debug
-        self.daemon = True
+# Helper class to redirect stdout/stderr to a multiprocessing Queue
+class QueueWriter:
+    def __init__(self, q):
+        self.queue = q
 
-    def run(self):
-        # Disable Flask reloader to avoid main thread errors in GUI
-        try:
-            # Use Waitress for production-ready performance suitable for 60+ users
-            # threads=16 allows 16 concurrent requests processing (good for file uploads)
-            print(f"Starting Waitress server with 16 threads...")
-            serve(app, host=self.host, port=self.port, threads=16) 
-        except Exception as e:
-            print(f"Error starting server: {e}")
+    def write(self, msg):
+        if msg:
+            self.queue.put(msg)
+
+    def flush(self):
+        pass
+
+def run_waitress_server(host, port, log_queue):
+    # Redirect stdout/stderr to queue in this child process
+    sys.stdout = QueueWriter(log_queue)
+    sys.stderr = QueueWriter(log_queue)
+    
+    # We need to ensure app loads correct config in this process
+    # But since config.json is saved before this process starts, app.py will read it on import/run.
+    # Re-importing app inside process or relying on process fork?
+    # On Windows, multiprocessing spawns fresh, so app is imported fresh.
+    # config.json acts as the source of truth.
+    
+    print(f"Initializing Waitress Server on {host}:{port}...")
+    try:
+        from app import app
+        # Ensure 'app' uses the secret key from config if needed, though secure_filename/sessions might need it.
+        # app module init code runs on import.
+        
+        serve(app, host=host, port=port, threads=16)
+    except Exception as e:
+        print(f"Server Error: {e}")
 
 class RedirectText:
-    def __init__(self, text_ctrl):
+    def __init__(self, text_ctrl, root):
         self.output = text_ctrl
+        self.root = root
 
     def write(self, string):
-        self.output.insert(tk.END, string)
-        self.output.see(tk.END)
+        # Schedule the update on the main thread to avoid GUI freezing/crashing
+        self.root.after(0, self._safe_write, string)
+
+    def _safe_write(self, string):
+        try:
+            self.output.insert(tk.END, string)
+            self.output.see(tk.END)
+        except:
+            pass # Ignore errors if window is closed
 
     def flush(self):
         pass
@@ -52,11 +78,24 @@ class AppGUI:
         # UI Elements
         self.create_widgets()
         
-        # Redirect stdout/stderr
-        sys.stdout = RedirectText(self.log_area)
-        sys.stderr = RedirectText(self.log_area)
+        # Redirect stdout/stderr for MAIN process (GUI logic logs)
+        sys.stdout = RedirectText(self.log_area, self.root)
+        sys.stderr = RedirectText(self.log_area, self.root)
 
-        self.server_thread = None
+        self.server_process = None
+        self.log_queue = multiprocessing.Queue()
+        self.poll_log_queue()
+
+    def poll_log_queue(self):
+        try:
+            while True:
+                msg = self.log_queue.get_nowait()
+                self.log_area.insert(tk.END, msg)
+                self.log_area.see(tk.END)
+        except queue.Empty:
+            pass
+        # Poll every 100ms
+        self.root.after(100, self.poll_log_queue)
 
     def load_config_file(self):
         if os.path.exists(CONFIG_FILE):
@@ -91,6 +130,18 @@ class AppGUI:
         reload_config()
         return True
 
+    def get_lan_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except Exception:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+        return IP
+
     def create_widgets(self):
         # Settings Frame
         settings_frame = ttk.LabelFrame(self.root, text="Server Settings", padding=10)
@@ -121,7 +172,8 @@ class AppGUI:
         self.folder_var = tk.StringVar(value=self.config.get('upload_folder', 'data'))
         folder_entry = ttk.Entry(settings_frame, textvariable=self.folder_var)
         folder_entry.grid(row=4, column=1, sticky="ew", pady=5)
-        ttk.Button(settings_frame, text="Chọn Folder", command=self.choose_folder).grid(row=4, column=2, padx=5)
+        ttk.Button(settings_frame, text="Chọn...", command=self.choose_folder).grid(row=4, column=2, padx=2)
+        ttk.Button(settings_frame, text="Mở HS", command=self.open_folder).grid(row=4, column=3, padx=2)
 
         settings_frame.columnconfigure(1, weight=1)
 
@@ -153,8 +205,32 @@ class AppGUI:
         if folder_selected:
             self.folder_var.set(folder_selected)
 
+    def open_folder(self):
+        folder = self.folder_var.get()
+        # If relative path, make it absolute based on CWD or executable loc
+        if not os.path.isabs(folder):
+            # In compiled exe, CWD might not be where the exe is, but usually it is.
+            # safe logic:
+            if getattr(sys, 'frozen', False):
+                base = os.path.dirname(sys.executable)
+            else:
+                base = os.path.abspath(os.path.dirname(__file__))
+            folder = os.path.join(base, folder)
+
+        if os.path.exists(folder):
+            try:
+                os.startfile(folder)
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open folder: {e}")
+        else:
+            try:
+                os.makedirs(folder, exist_ok=True)
+                os.startfile(folder)
+            except Exception as e:
+                messagebox.showerror("Error", f"Folder does not exist and cannot act: {e}")
+
     def start_server(self):
-        if self.server_thread and self.server_thread.is_alive():
+        if self.server_process and self.server_process.is_alive():
             messagebox.showinfo("Info", "Server is already running.")
             return
 
@@ -163,49 +239,71 @@ class AppGUI:
             host = self.config.get('host', '0.0.0.0')
             port = self.config.get('port', 8080)
             
-            self.server_thread = ServerThread(host, port, self.config.get('debug', False))
-            self.server_thread.start()
+            # Use multiprocessing Process instead of Thread
+            self.server_process = multiprocessing.Process(
+                target=run_waitress_server, 
+                args=(host, port, self.log_queue),
+                daemon=True
+            )
+            self.server_process.start()
             
             self.start_btn.config(state="disabled")
             self.stop_btn.config(state="normal")
             self.browser_btn.config(state="normal")
             
-            # Print info
-            print(f"Server started on http://{host}:{port}")
-            print(f"Folder: {self.config.get('upload_folder')}")
+            # Print info (from main process)
+            print(f"GUI: Server process started on http://{host}:{port}")
+            print(f"GUI: Folder: {self.config.get('upload_folder')}")
+
+            # Show helpful IP info
+            lan_ip = self.get_lan_ip()
+            print(f"--------------------------------------------------")
+            print(f"HƯỚNG DẪN HỌC SINH:")
+            print(f"Truy cập địa chỉ: http://{lan_ip}:{port}")
+            print(f"--------------------------------------------------")
 
     def stop_server(self):
-        if not self.server_thread or not self.server_thread.is_alive():
+        if not self.server_process or not self.server_process.is_alive():
             return
             
-        host = self.config.get('host', '0.0.0.0')
-        if host == "0.0.0.0":
-             host = "127.0.0.1" 
-             
-        port = self.config.get('port', 8080)
+        self.stop_btn.config(text="Stopping...", state="disabled")
+        
+        # Terminate the process
         try:
-            # Send shutdown request to the server
-            requests.post(f"http://{host}:{port}/shutdown")
-            self.server_thread.join(timeout=2)
-            print("Server stopped.")
+            self.server_process.terminate()
+            self.server_process.join(timeout=2)
+            if self.server_process.is_alive():
+                 self.server_process.kill()
+            print("GUI: Server process terminated.")
         except Exception as e:
-            print(f"Error stopping server: {e}")
+            print(f"GUI: Error stopping server: {e}")
             
+        self.server_process = None
+        
         self.start_btn.config(state="normal")
-        self.stop_btn.config(state="disabled")
+        self.stop_btn.config(text="Stop Server", state="disabled")
         self.browser_btn.config(state="disabled")
 
+    def _shutdown_task(self):
+        # Legacy thread task - not used with multiprocessing
+        pass
+
+    def _on_server_stopped(self):
+        # Legacy callback - not used with multiprocessing
+        pass
+        
     def open_browser(self):
         port = self.config.get('port', 8080)
         webbrowser.open(f"http://localhost:{port}")
 
     def exit_app(self):
-        if self.server_thread and self.server_thread.is_alive():
+        if self.server_process and self.server_process.is_alive():
             self.stop_server()
         self.root.destroy()
         sys.exit(0)
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support() # Crucial for PyInstaller
     try:
         root = tk.Tk()
         app_gui = AppGUI(root)

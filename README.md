@@ -41,9 +41,11 @@ Nếu bạn muốn tự đóng gói phần mềm thành file `.exe` để chạy
     *   **Port**: Mặc định `8080` (có thể đổi nếu bị trùng).
     *   **Admin User/Pass**: Đặt tài khoản để giáo viên quản trị (Mặc định: `admin` / `123456`).
     *   **Folder chứa bài**: Chọn thư mục trên máy (hoặc USB) để lưu bài nộp.
+    *   **Nút "Mở HS"**: Bấm để mở nhanh thư mục chứa bài tập trong Windows Explorer.
 3.  **Bắt đầu**: Bấm nút **"Start Server"**.
+    *   Phần mềm sẽ hiện ra địa chỉ IP của máy (Ví dụ: `http://192.168.1.5:8080`) trong khung log.
 4.  **Cho học sinh nộp bài**:
-    *   Cung cấp địa chỉ IP của máy giáo viên cho học sinh (Ví dụ: `http://192.168.1.50:8080`).
+    *   Cung cấp địa chỉ IP hiển thị trong log cho học sinh.
     *   Học sinh truy cập vào web và chọn file để nộp.
 5.  **Quản lý bài**:
     *   Giáo viên bấm nút "Mở Web" trên phần mềm.
