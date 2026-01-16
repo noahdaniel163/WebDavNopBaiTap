@@ -68,8 +68,26 @@ class RedirectText:
 class AppGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Teacher WebDAV Manager")
-        self.root.geometry("500x650")
+        self.root.title("📚 Teacher WebDAV Manager")
+        self.root.geometry("700x750")
+        self.root.resizable(True, True)
+        
+        # Configure style
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Define colors
+        style.configure('TLabel', font=('Segoe UI', 10))
+        style.configure('Title.TLabel', font=('Segoe UI', 14, 'bold'), foreground='#2c3e50')
+        style.configure('TLabelframe', font=('Segoe UI', 11, 'bold'), foreground='#2c3e50')
+        style.configure('TLabelframe.Label', font=('Segoe UI', 11, 'bold'))
+        style.configure('TEntry', font=('Segoe UI', 10))
+        style.configure('TButton', font=('Segoe UI', 10))
+        
+        # Custom button styles
+        style.configure('Start.TButton', foreground='#27ae60')
+        style.configure('Stop.TButton', foreground='#e74c3c')
+        style.configure('Info.TButton', foreground='#3498db')
         
         # Load Config
         self.config = {}
@@ -145,69 +163,101 @@ class AppGUI:
         return IP
 
     def create_widgets(self):
-        # Settings Frame
-        settings_frame = ttk.LabelFrame(self.root, text="Server Settings", padding=10)
-        settings_frame.pack(fill="x", padx=10, pady=5)
+        # Main container with padding
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Title
+        title_label = ttk.Label(main_frame, text="⚙️ Server Configuration", style='Title.TLabel')
+        title_label.pack(fill="x", pady=(0, 15))
+        
+        # Settings Frame with better organization
+        settings_frame = ttk.LabelFrame(main_frame, text="Network Settings", padding=15)
+        settings_frame.pack(fill="x", padx=0, pady=(0, 10))
 
         # Host
-        ttk.Label(settings_frame, text="Host IP:").grid(row=0, column=0, sticky="w", pady=5)
+        ttk.Label(settings_frame, text="Host IP:").grid(row=0, column=0, sticky="w", pady=8)
         self.host_var = tk.StringVar(value=self.config.get('host', '0.0.0.0'))
-        ttk.Entry(settings_frame, textvariable=self.host_var).grid(row=0, column=1, sticky="ew", pady=5)
+        host_entry = ttk.Entry(settings_frame, textvariable=self.host_var, width=30)
+        host_entry.grid(row=0, column=1, sticky="ew", pady=8, padx=(10, 0))
+        ttk.Label(settings_frame, text="(0.0.0.0 = all interfaces)", font=('Segoe UI', 9), foreground='#7f8c8d').grid(row=0, column=2, sticky="w", padx=10)
 
         # Port
-        ttk.Label(settings_frame, text="Port:").grid(row=1, column=0, sticky="w", pady=5)
+        ttk.Label(settings_frame, text="Port:").grid(row=1, column=0, sticky="w", pady=8)
         self.port_var = tk.StringVar(value=str(self.config.get('port', 8080)))
-        ttk.Entry(settings_frame, textvariable=self.port_var).grid(row=1, column=1, sticky="ew", pady=5)
+        port_entry = ttk.Entry(settings_frame, textvariable=self.port_var, width=30)
+        port_entry.grid(row=1, column=1, sticky="ew", pady=8, padx=(10, 0))
+        ttk.Label(settings_frame, text="(default: 8080)", font=('Segoe UI', 9), foreground='#7f8c8d').grid(row=1, column=2, sticky="w", padx=10)
+
+        # Authentication Frame
+        auth_frame = ttk.LabelFrame(main_frame, text="🔐 Admin Authentication", padding=15)
+        auth_frame.pack(fill="x", padx=0, pady=(0, 10))
 
         # Admin User
-        ttk.Label(settings_frame, text="Admin User:").grid(row=2, column=0, sticky="w", pady=5)
+        ttk.Label(auth_frame, text="Username:").grid(row=0, column=0, sticky="w", pady=8)
         self.user_var = tk.StringVar(value=self.config.get('admin_user', 'admin'))
-        ttk.Entry(settings_frame, textvariable=self.user_var).grid(row=2, column=1, sticky="ew", pady=5)
+        user_entry = ttk.Entry(auth_frame, textvariable=self.user_var, width=30)
+        user_entry.grid(row=0, column=1, sticky="ew", pady=8, padx=(10, 0))
 
         # Admin Pass
-        ttk.Label(settings_frame, text="Admin Pass:").grid(row=3, column=0, sticky="w", pady=5)
+        ttk.Label(auth_frame, text="Password:").grid(row=1, column=0, sticky="w", pady=8)
         self.pass_var = tk.StringVar(value=self.config.get('admin_pass', '123456'))
-        ttk.Entry(settings_frame, textvariable=self.pass_var, show="*").grid(row=3, column=1, sticky="ew", pady=5)
-        
+        pass_entry = ttk.Entry(auth_frame, textvariable=self.pass_var, show="•", width=30)
+        pass_entry.grid(row=1, column=1, sticky="ew", pady=8, padx=(10, 0))
+
+        # Storage Frame
+        storage_frame = ttk.LabelFrame(main_frame, text="📁 Storage Settings", padding=15)
+        storage_frame.pack(fill="x", padx=0, pady=(0, 10))
+
         # Upload Folder
-        ttk.Label(settings_frame, text="Folder chứa bài:").grid(row=4, column=0, sticky="w", pady=5)
+        ttk.Label(storage_frame, text="Submissions Folder:").grid(row=0, column=0, sticky="w", pady=8)
         self.folder_var = tk.StringVar(value=self.config.get('upload_folder', 'data'))
-        folder_entry = ttk.Entry(settings_frame, textvariable=self.folder_var)
-        folder_entry.grid(row=4, column=1, sticky="ew", pady=5)
-        ttk.Button(settings_frame, text="Chọn...", command=self.choose_folder).grid(row=4, column=2, padx=2)
-        ttk.Button(settings_frame, text="Mở HS", command=self.open_folder).grid(row=4, column=3, padx=2)
+        folder_entry = ttk.Entry(storage_frame, textvariable=self.folder_var, width=25)
+        folder_entry.grid(row=0, column=1, sticky="ew", pady=8, padx=(10, 0))
+        ttk.Button(storage_frame, text="Browse", command=self.choose_folder, width=10).grid(row=0, column=2, padx=5)
+        ttk.Button(storage_frame, text="📂 Open", command=self.open_folder, width=10).grid(row=0, column=3, padx=2)
 
         # Assignment Folder
-        ttk.Label(settings_frame, text="Folder đề bài:").grid(row=5, column=0, sticky="w", pady=5)
+        ttk.Label(storage_frame, text="Assignment Files:").grid(row=1, column=0, sticky="w", pady=8)
         self.assignment_var = tk.StringVar(value=self.config.get('assignment_folder', ''))
-        assignment_entry = ttk.Entry(settings_frame, textvariable=self.assignment_var)
-        assignment_entry.grid(row=5, column=1, sticky="ew", pady=5)
-        ttk.Button(settings_frame, text="Chọn...", command=self.choose_assignment_folder).grid(row=5, column=2, padx=2)
-        ttk.Button(settings_frame, text="Mở", command=self.open_assignment_folder).grid(row=5, column=3, padx=2)
+        assignment_entry = ttk.Entry(storage_frame, textvariable=self.assignment_var, width=25)
+        assignment_entry.grid(row=1, column=1, sticky="ew", pady=8, padx=(10, 0))
+        ttk.Button(storage_frame, text="Browse", command=self.choose_assignment_folder, width=10).grid(row=1, column=2, padx=5)
+        ttk.Button(storage_frame, text="📂 Open", command=self.open_assignment_folder, width=10).grid(row=1, column=3, padx=2)
 
+        storage_frame.columnconfigure(1, weight=1)
         settings_frame.columnconfigure(1, weight=1)
+        auth_frame.columnconfigure(1, weight=1)
 
-        # Buttons Frame
-        btn_frame = ttk.Frame(self.root)
-        btn_frame.pack(fill="x", padx=10, pady=10)
+        # Control Buttons Frame
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill="x", padx=0, pady=(10, 10))
 
-        self.start_btn = ttk.Button(btn_frame, text="Start Server", command=self.start_server)
+        self.start_btn = ttk.Button(btn_frame, text="▶️  Start Server", command=self.start_server, style='Start.TButton')
         self.start_btn.pack(side="left", expand=True, fill="x", padx=2)
 
-        self.stop_btn = ttk.Button(btn_frame, text="Stop Server", command=self.stop_server, state="disabled")
+        self.stop_btn = ttk.Button(btn_frame, text="⏹️  Stop Server", command=self.stop_server, state="disabled", style='Stop.TButton')
         self.stop_btn.pack(side="left", expand=True, fill="x", padx=2)
         
-        self.browser_btn = ttk.Button(btn_frame, text="Mở Web", command=self.open_browser, state="disabled")
+        self.browser_btn = ttk.Button(btn_frame, text="🌐 Open Web", command=self.open_browser, state="disabled", style='Info.TButton')
         self.browser_btn.pack(side="left", expand=True, fill="x", padx=2)
 
-        self.exit_btn = ttk.Button(btn_frame, text="Exit", command=self.exit_app)
+        self.exit_btn = ttk.Button(btn_frame, text="❌ Exit", command=self.exit_app)
         self.exit_btn.pack(side="left", expand=True, fill="x", padx=2)
 
-        # Log Area
-        log_frame = ttk.LabelFrame(self.root, text="Console Log", padding=5)
-        log_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        # Log Area with better styling
+        log_frame = ttk.LabelFrame(main_frame, text="📋 Console Log", padding=10)
+        log_frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
-        self.log_area = scrolledtext.ScrolledText(log_frame, height=10, state='normal', font=("Consolas", 9))
+        self.log_area = scrolledtext.ScrolledText(
+            log_frame, 
+            height=12, 
+            state='normal', 
+            font=("Consolas", 9),
+            bg='#f8f9fa',
+            fg='#2c3e50',
+            wrap=tk.WORD
+        )
         self.log_area.pack(fill="both", expand=True)
 
     def choose_folder(self):
