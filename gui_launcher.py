@@ -106,6 +106,7 @@ class AppGUI:
                 "host": "0.0.0.0",
                 "port": 8080,
                 "upload_folder": "data",
+                "assignment_folder": "",
                 "debug": True,
                 "admin_user": "admin",
                 "admin_pass": "123456",
@@ -123,6 +124,7 @@ class AppGUI:
         self.config['admin_user'] = self.user_var.get()
         self.config['admin_pass'] = self.pass_var.get()
         self.config['upload_folder'] = self.folder_var.get()
+        self.config['assignment_folder'] = self.assignment_var.get()
 
         with open(CONFIG_FILE, 'w') as f:
             json.dump(self.config, f, indent=4)
@@ -175,6 +177,14 @@ class AppGUI:
         ttk.Button(settings_frame, text="Chọn...", command=self.choose_folder).grid(row=4, column=2, padx=2)
         ttk.Button(settings_frame, text="Mở HS", command=self.open_folder).grid(row=4, column=3, padx=2)
 
+        # Assignment Folder
+        ttk.Label(settings_frame, text="Folder đề bài:").grid(row=5, column=0, sticky="w", pady=5)
+        self.assignment_var = tk.StringVar(value=self.config.get('assignment_folder', ''))
+        assignment_entry = ttk.Entry(settings_frame, textvariable=self.assignment_var)
+        assignment_entry.grid(row=5, column=1, sticky="ew", pady=5)
+        ttk.Button(settings_frame, text="Chọn...", command=self.choose_assignment_folder).grid(row=5, column=2, padx=2)
+        ttk.Button(settings_frame, text="Mở", command=self.open_assignment_folder).grid(row=5, column=3, padx=2)
+
         settings_frame.columnconfigure(1, weight=1)
 
         # Buttons Frame
@@ -205,6 +215,11 @@ class AppGUI:
         if folder_selected:
             self.folder_var.set(folder_selected)
 
+    def choose_assignment_folder(self):
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            self.assignment_var.set(folder_selected)
+
     def open_folder(self):
         folder = self.folder_var.get()
         # If relative path, make it absolute based on CWD or executable loc
@@ -217,6 +232,24 @@ class AppGUI:
                 base = os.path.abspath(os.path.dirname(__file__))
             folder = os.path.join(base, folder)
 
+        if os.path.exists(folder):
+            try:
+                os.startfile(folder)
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open folder: {e}")
+        else:
+            try:
+                os.makedirs(folder, exist_ok=True)
+                os.startfile(folder)
+            except Exception as e:
+                messagebox.showerror("Error", f"Folder does not exist and cannot act: {e}")
+
+    def open_assignment_folder(self):
+        folder = self.assignment_var.get()
+        if not folder:
+            messagebox.showinfo("Info", "Chưa chọn thư mục đề bài")
+            return
+        
         if os.path.exists(folder):
             try:
                 os.startfile(folder)
@@ -253,7 +286,10 @@ class AppGUI:
             
             # Print info (from main process)
             print(f"GUI: Server process started on http://{host}:{port}")
-            print(f"GUI: Folder: {self.config.get('upload_folder')}")
+            print(f"GUI: Folder bài nộp: {self.config.get('upload_folder')}")
+            assignment_folder = self.config.get('assignment_folder', '')
+            if assignment_folder:
+                print(f"GUI: Folder đề bài: {assignment_folder}")
 
             # Show helpful IP info
             lan_ip = self.get_lan_ip()

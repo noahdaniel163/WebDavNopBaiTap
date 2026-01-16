@@ -4,6 +4,7 @@
     "upload_folder": "E:/NopBai01",
     "debug": true,
     "admin_user": "admin",
-    "admin_pass": "123456",
-    "secret_key": "123"
+    "admin_pass": "q",
+    "secret_key": "123",
+    "assignment_folder": "E:/baitap"
 }

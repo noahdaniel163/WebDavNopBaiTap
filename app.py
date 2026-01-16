@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+from urllib.parse import unquote
 from flask import Flask, render_template, request, send_from_directory, redirect, url_for, session, flash
 from werkzeug.utils import secure_filename
 
@@ -25,6 +26,7 @@ if not os.path.exists(CONFIG_FILE):
         "host": "0.0.0.0",
         "port": 8080,
         "upload_folder": "data",
+        "assignment_folder": "",
         "debug": True,
         "admin_user": "admin",
         "admin_pass": "123456",
@@ -45,6 +47,12 @@ def get_upload_folder():
     os.makedirs(folder_path, exist_ok=True)
     return folder_path
 
+def get_assignment_folder():
+    folder_path = config.get('assignment_folder', '')
+    if not folder_path or not os.path.exists(folder_path):
+        return None
+    return folder_path
+
 def reload_config():
     global config
     if os.path.exists(CONFIG_FILE):
@@ -57,6 +65,7 @@ def reload_config():
 @app.route('/')
 def index():
     if not session.get('logged_in'):
+        # For students: show upload form only
         return render_template('index.html', logged_in=False)
     
     upload_folder = get_upload_folder()
@@ -113,6 +122,48 @@ def download_file(filename):
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     return send_from_directory(get_upload_folder(), filename)
+
+@app.route('/baitap')
+def baitap():
+    # Trang download đề bài - dành cho học sinh
+    assignment_folder = get_assignment_folder()
+    assignment_files = []
+    if assignment_folder:
+        try:
+            assignment_files = os.listdir(assignment_folder)
+            assignment_files.sort()
+        except:
+            pass
+    return render_template('baitap.html', assignment_files=assignment_files)
+
+@app.route('/download_assignment/<path:filename>')
+def download_assignment(filename):
+    # Allow both logged-in teachers and students to download assignments
+    assignment_folder = get_assignment_folder()
+    if not assignment_folder:
+        return "Assignment folder not configured", 404
+    
+    # URL decode the filename (convert %20 to space, etc)
+    decoded_filename = unquote(filename)
+    
+    # Get just the filename part (prevent path traversal like ../)
+    just_filename = os.path.basename(decoded_filename)
+    
+    # Build the full path
+    file_path = os.path.join(assignment_folder, just_filename)
+    
+    # Security check 1: ensure file exists
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        return "File not found", 404
+    
+    # Security check 2: ensure resolved path is within assignment folder (prevent symlink attacks)
+    real_path = os.path.realpath(file_path)
+    real_folder = os.path.realpath(assignment_folder)
+    if not real_path.startswith(real_folder):
+        return "Forbidden", 403
+    
+    # Use send_from_directory with the actual filename
+    return send_from_directory(assignment_folder, just_filename)
 
 @app.route('/delete/<filename>', methods=['POST'])
 def delete_file(filename):
